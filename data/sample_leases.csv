@@ -1,0 +1,5 @@
+lease_id,tenant,start_date,term_months,base_rent,deposit,lock_in_months,notice_days,escalation_pct,maintenance,uncapped
+L101,Asha Rao,2026-01-01,11,20000,80000,6,30,5,1500,
+L102,Ravi Kumar,2026-02-01,11,15000,45000,0,60,5,1000,
+L103,Meena Iyer,2026-01-31,11,31000,62000,3,30,5,2000,Y
+L104,Bad Deposit,2026-01-01,11,10000,10000,0,30,5,0,

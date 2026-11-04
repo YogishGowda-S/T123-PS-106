@@ -5,3 +5,8 @@ from decimal import Decimal, ROUND_HALF_UP
 def to_rupees(amount) -> Decimal:
     """Round to a whole rupee, half-up (BR-44)."""
     return Decimal(str(amount)).quantize(Decimal("1"), rounding=ROUND_HALF_UP)
+
+
+def rs(amount) -> str:
+    """Format for printing, e.g. Rs 12,500."""
+    return f"Rs {Decimal(amount):,.0f}"

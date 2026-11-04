@@ -1,15 +1,28 @@
 """Entry point for the rental settlement engine.
 
-Week 2 will add command-file processing. For now this prints usage.
+Usage: python main.py <leases.csv> <payments.csv> <events.csv>
 """
+import csv
 import sys
+
+from src.engine import Engine
+
+
+def read_rows(path):
+    with open(path, newline="", encoding="utf-8") as handle:
+        return list(csv.DictReader(handle))
 
 
 def main(argv):
-    print("PS-106 Rental Settlement Engine")
-    print("Usage: python main.py <leases.csv> <payments.csv> <events.csv>")
-    print("(command-file processing will be added in Week 2)")
+    if len(argv) != 3:
+        print("PS-106 Rental Settlement Engine")
+        print("Usage: python main.py <leases.csv> <payments.csv> <events.csv>")
+        return 1
+    engine = Engine()
+    engine.run(read_rows(argv[0]), read_rows(argv[1]), read_rows(argv[2]))
+    print("\n".join(engine.out))
+    return 0
 
 
 if __name__ == "__main__":
-    main(sys.argv[1:])
+    sys.exit(main(sys.argv[1:]))
