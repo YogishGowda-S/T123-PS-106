@@ -3,7 +3,7 @@ from datetime import timedelta
 from decimal import Decimal
 
 from src.billing import rent_for_month
-from src.money import rs, to_rupees
+from src.money import rs, to_money
 
 
 def format_lease(lease, as_of) -> str:
@@ -49,7 +49,7 @@ def build_ledger(lease, as_of):
                 rows.append((i.due_date, 0, f"Maintenance {tag}", i.maint_due, Decimal(0)))
         if i.late_fee_charged and i.grace_end + one_day <= as_of:
             rows.append((i.grace_end + one_day, 1, f"Late fee {tag}", Decimal(500), Decimal(0)))
-        interest = to_rupees(i.interest_accrued)
+        interest = to_money(i.interest_accrued)
         if interest > 0 and i.last_accrual and i.last_accrual <= as_of:
             rows.append((i.last_accrual, 1, f"Late interest {tag}", interest, Decimal(0)))
     for p in lease.payment_log:

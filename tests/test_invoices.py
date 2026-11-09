@@ -83,7 +83,7 @@ def test_maintenance_passed_through_at_actuals():  # BR-26
 
 def test_maintenance_prorated_for_partial_month():  # BR-27
     lease = make_lease(start=date(2026, 1, 16), maintenance="800")
-    assert invoice(lease, 2026, 1).maint_due == D("413")   # 800 x 16 / 31
+    assert invoice(lease, 2026, 1).maint_due == D("412.90")   # 800 x 16 / 31
 
 
 def test_maintenance_capped_at_10_percent_of_rent():  # BR-28

@@ -8,7 +8,7 @@ from decimal import Decimal
 from typing import Optional
 
 from src.dates import add_months
-from src.money import to_rupees
+from src.money import to_money
 
 ZERO = Decimal("0")
 LATE_FEE = Decimal("500")  # BR-12
@@ -33,15 +33,17 @@ class Invoice:
 
     @property
     def total_due(self) -> Decimal:
+        """Invoice total shown to the tenant: rent plus pass-through maintenance."""
         return self.base_due + self.maint_due
 
     @property
     def outstanding(self) -> Decimal:
-        return max(ZERO, self.total_due - self.rent_paid)
+        """Unpaid RENT. Late fee and interest are charged on rent only (A-11)."""
+        return max(ZERO, self.base_due - self.rent_paid)
 
     @property
     def interest_due(self) -> Decimal:
-        return max(ZERO, to_rupees(self.interest_accrued) - self.interest_paid)
+        return max(ZERO, to_money(self.interest_accrued) - self.interest_paid)
 
     @property
     def late_fee_due(self) -> Decimal:
@@ -70,7 +72,9 @@ class Lease:
     uncapped: bool = False             # UNCAPPED flag (BR-28)
     status: str = "DRAFT"
     flags: set = field(default_factory=set)  # e.g. {"DEFAULT"}
-    maintenance: Decimal = ZERO        # society maintenance at actuals (BR-26)
+    maintenance: Decimal = ZERO        # default monthly society maintenance (BR-26)
+    carpet_sqft: int = 0               # painting basis (BR-29)
+    maintenance_actuals: dict = field(default_factory=dict)  # {(year, month): amount}
 
     # Runtime state, set up in __post_init__
     initial_rent: Decimal = field(init=False)
@@ -78,8 +82,9 @@ class Lease:
     lock_in_start: date = field(init=False)
     renewed: bool = field(init=False, default=False)
     vacate_date: Optional[date] = field(init=False, default=None)
+    actual_vacated: Optional[date] = field(init=False, default=None)
     notice: Optional[dict] = field(init=False, default=None)
-    offer_made: bool = field(init=False, default=False)
+    default_notice_date: Optional[date] = field(init=False, default=None)
     inspection: Optional[dict] = field(init=False, default=None)
     credit: Decimal = field(init=False, default=ZERO)
     invoices: list = field(init=False, default_factory=list)
@@ -111,8 +116,6 @@ class Lease:
         return add_months(self.start_date, self.term_months) - timedelta(days=1)
 
     def effective_end(self) -> date:
-        """Last billable day: term end, or the vacation date if earlier (BR-05)."""
-        end = self.term_end()
-        if self.vacate_date and self.vacate_date < end:
-            end = self.vacate_date
-        return end
+        """Last billable day: the vacation date once notice is given (even if it
+        falls after the term, i.e. holding over), else the term end (BR-05)."""
+        return self.vacate_date or self.term_end()

@@ -1,9 +1,13 @@
-from datetime import date, timedelta
+from datetime import date
 
 import pytest
 
 from src import events as ev
 from tests.helpers import D, make_lease
+
+
+def invoice(lease, year, month):
+    return next(i for i in lease.invoices if (i.year, i.month) == (year, month))
 
 
 def test_landlord_notice_under_60_days_rejected():  # BR-24
@@ -38,11 +42,18 @@ def test_notice_period_of_60_days_per_lease():  # BR-22
     assert lease.notice["shortfall_days"] == 15
 
 
-def test_break_is_notice_and_vacation_on_the_same_day():
+def test_break_without_notice_counts_the_full_notice_period_as_short():  # A-14
     lease = make_lease()
     ev.break_lease(lease, date(2026, 3, 10))
     assert lease.vacate_date == date(2026, 3, 10)
     assert lease.notice["shortfall_days"] == 30
+
+
+def test_break_after_notice_keeps_the_notice_date():  # A-14
+    lease = make_lease(notice_days=60, lock_in_months=6)
+    ev.give_notice(lease, date(2026, 7, 1), "TENANT", date(2026, 9, 1))
+    ev.break_lease(lease, date(2026, 9, 1), date(2026, 9, 1))
+    assert lease.notice["shortfall_days"] == 0
 
 
 def test_billing_stops_at_vacation_date():  # BR-05
@@ -52,6 +63,12 @@ def test_billing_stops_at_vacation_date():  # BR-05
     assert len(lease.invoices) == 3
 
 
+def test_billing_continues_to_a_vacation_date_after_the_term_ends():
+    lease = make_lease(term_months=1)             # term ends 31 Jan
+    ev.give_notice(lease, date(2026, 1, 2), "TENANT", date(2026, 2, 10))
+    assert lease.invoices[-1].month == 2 and lease.invoices[-1].days == 10
+
+
 def test_second_notice_rejected():
     lease = make_lease()
     ev.give_notice(lease, date(2026, 3, 1), "TENANT", date(2026, 3, 31))
@@ -59,92 +76,57 @@ def test_second_notice_rejected():
         ev.give_notice(lease, date(2026, 3, 2), "TENANT", date(2026, 4, 5))
 
 
-def test_default_triggers_termination_notice():  # BR-18
-    lease = make_lease()
-    message = ev.default_notice(lease, date(2026, 3, 10))
-    assert "DEFAULT" in message
-    assert lease.status == "NOTICE_GIVEN"
-    assert lease.notice["vacate"] == date(2026, 3, 10) + timedelta(days=60)
-
-
 # ---- renewal ----
-def offer(lease, when=date(2026, 10, 1)):
-    ev.make_offer(lease, when)
-
-
-def test_renewal_offered_45_days_before_expiry():  # BR-39
-    lease = make_lease()                       # term ends 2026-11-30
-    ev.make_offer(lease, date(2026, 10, 16))   # exactly 45 days before
-    assert lease.status == "RENEWAL_OFFERED"
-
-
-def test_renewal_offer_too_late_rejected():  # BR-39
-    lease = make_lease()
-    with pytest.raises(ev.RuleError):
-        ev.make_offer(lease, date(2026, 10, 20))
-
-
 def test_renewal_with_exactly_10_percent_increase_accepted():  # EC-07, BR-42
     lease = make_lease()
-    offer(lease)
-    ev.accept_renewal(lease, date(2026, 10, 5), new_rent=D("11000"))
+    ev.accept_renewal(lease, date(2026, 10, 5), D("11000"))
     assert lease.status == "ACTIVE" and lease.renewed
 
 
 def test_renewal_above_10_percent_needs_negotiated_flag():  # BR-41
     lease = make_lease()
-    offer(lease)
     with pytest.raises(ev.RuleError):
-        ev.accept_renewal(lease, date(2026, 10, 5), new_rent=D("11001"))
-    assert lease.status == "RENEWAL_OFFERED"
-    ev.accept_renewal(lease, date(2026, 10, 6), new_rent=D("11001"), negotiated=True)
-    assert lease.status == "ACTIVE"
+        ev.accept_renewal(lease, date(2026, 10, 5), D("11001"))
+    assert not lease.renewed
+    ev.accept_renewal(lease, date(2026, 10, 6), D("11001"), negotiated=True)
+    assert lease.renewed
 
 
 def test_renewal_resets_lock_in_to_zero():  # BR-40
     lease = make_lease(lock_in_months=6)
-    offer(lease)
-    ev.accept_renewal(lease, date(2026, 10, 5))
+    ev.accept_renewal(lease, date(2026, 10, 5), D("10000"))
     assert lease.lock_in_months == 0
 
 
 def test_renewal_can_specify_a_new_lock_in():  # BR-40
     lease = make_lease(lock_in_months=6)
-    offer(lease)
-    ev.accept_renewal(lease, date(2026, 10, 5), lock_in=3)
+    ev.accept_renewal(lease, date(2026, 10, 5), D("10000"), lock_in=3)
     assert lease.lock_in_months == 3
 
 
 def test_renewal_extends_term_and_adds_invoices():
     lease = make_lease()
-    offer(lease)
-    ev.accept_renewal(lease, date(2026, 10, 5))
+    ev.accept_renewal(lease, date(2026, 10, 5), D("10000"))
     assert lease.term_end() == date(2027, 10, 31)
     assert len(lease.invoices) == 22
 
 
-def test_renewed_lease_escalates_after_12_months():  # BR-07
-    lease = make_lease()
-    offer(lease)
-    ev.accept_renewal(lease, date(2026, 10, 5))
-    jan27 = next(i for i in lease.invoices if (i.year, i.month) == (2027, 1))
-    assert jan27.base_due == D("10500")
+def test_new_rent_applies_from_the_month_after_the_old_term():  # A-19
+    lease = make_lease()                          # old term ends 30 Nov 2026
+    ev.accept_renewal(lease, date(2026, 10, 5), D("11000"))
+    assert invoice(lease, 2026, 11).base_due == D("10000")   # last old month, full month
+    assert invoice(lease, 2026, 12).base_due == D("11000")
 
 
 def test_default_blocks_renewal():  # BR-17
     lease = make_lease()
     lease.flags.add("DEFAULT")
     with pytest.raises(ev.RuleError):
-        ev.make_offer(lease, date(2026, 10, 1))
+        ev.accept_renewal(lease, date(2026, 10, 5), D("10000"))
 
 
-def test_accept_without_offer_rejected():
+def test_renewal_rejected_after_notice():
     lease = make_lease()
+    ev.give_notice(lease, date(2026, 3, 1), "TENANT", date(2026, 3, 31))
     with pytest.raises(ev.RuleError):
-        ev.accept_renewal(lease, date(2026, 10, 5))
-
-
-def test_extension_adds_months():
-    lease = make_lease()
-    ev.extend_term(lease, date(2026, 6, 1), 3)
-    assert lease.term_end() == date(2027, 2, 28)
+        ev.accept_renewal(lease, date(2026, 3, 5), D("10000"))

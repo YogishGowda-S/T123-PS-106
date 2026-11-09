@@ -11,7 +11,7 @@ from decimal import Decimal
 from src.billing import rent_for_month
 from src.dates import add_months, days_in_month, months_between
 from src.models import ZERO
-from src.money import to_rupees
+from src.money import to_money
 from src.payments import accrue_invoice
 
 PAINTING_RATE = Decimal("15")      # BR-29, per sq ft
@@ -38,10 +38,14 @@ class Settlement:
     net_before_late: Decimal = ZERO
     net_refund: Decimal = ZERO                   # negative means tenant owes
     notes: list = field(default_factory=list)
+    unpaid: Decimal = ZERO                       # step 1 amount
+    shortfall: Decimal = ZERO                    # step 2 amount
+    forfeiture: Decimal = ZERO                   # step 3 amount
+    inspection_total: Decimal = ZERO             # step 4 amount, after the cap
 
 
 def compute_settlement(lease, settle_date) -> Settlement:
-    vacate = lease.vacate_date
+    vacate = lease.actual_vacated or lease.vacate_date
     notice = lease.notice or {}
     by = notice.get("by", "EXPIRY")
     rent_v = rent_for_month(lease, vacate.year, vacate.month)
@@ -58,20 +62,20 @@ def compute_settlement(lease, settle_date) -> Settlement:
     shortfall_days = notice.get("shortfall_days", 0) if by == "TENANT" else 0
     shortfall = ZERO
     if shortfall_days > 0:
-        shortfall = to_rupees(rent_v * shortfall_days / days_in_month(vacate.year, vacate.month))
+        shortfall = to_money(rent_v * shortfall_days / days_in_month(vacate.year, vacate.month))
     label = f"Notice shortfall ({shortfall_days} days)" if shortfall_days else "Notice shortfall"
     charges.append((label, shortfall))
 
     # 3. Lock-in forfeiture (BR-19 to BR-21, BR-25)
     forfeit, label = ZERO, "Lock-in forfeiture"
     lock_end = add_months(lease.lock_in_start, lease.lock_in_months)
-    if lease.lock_in_months > 0 and vacate < lock_end:
+    if lease.lock_in_months > 0 and vacate <= lock_end:  # lock-in end date is inside the period (A-21)
         if by == "LANDLORD":
             label = "Lock-in forfeiture (waived: landlord notice)"
         elif by in ("TENANT", "LANDLORD-DEFAULT"):
             early = vacate <= add_months(lease.lock_in_start, 3)  # A-01: inclusive
             months = 2 if (lease.lock_in_months >= 6 and early) else 1
-            forfeit = to_rupees(rent_v * months)
+            forfeit = to_money(rent_v * months)
             label = f"Lock-in forfeiture ({months} month{'s' if months > 1 else ''} rent)"
     charges.append((label, forfeit))
 
@@ -82,7 +86,7 @@ def compute_settlement(lease, settle_date) -> Settlement:
         stay = months_between(lease.start_date, vacate)
         if insp["painting"]:
             rate = PAINTING_RATE if stay < LONG_STAY_MONTHS else PAINTING_RATE * LONG_STAY_FACTOR
-            items.append((f"Painting ({insp['area']} sq ft)", to_rupees(insp["area"] * rate)))
+            items.append((f"Painting ({insp['area']} sq ft)", to_money(insp["area"] * rate)))
         if insp["deep_clean"]:
             items.append(("Deep cleaning", DEEP_CLEANING))
         for desc, amount in insp["damages"]:
@@ -107,14 +111,18 @@ def compute_settlement(lease, settle_date) -> Settlement:
     excess = lease.deposit - DEPOSIT_FREE_MONTHS * lease.initial_rent
     if excess > 0:
         days = (vacate - lease.start_date).days
-        result.deposit_interest = to_rupees(excess * DEPOSIT_INTEREST_RATE * days / 365)
+        result.deposit_interest = to_money(excess * DEPOSIT_INTEREST_RATE * days / 365)
     result.advance_credit = lease.credit
     net = balance + result.deposit_interest + lease.credit
     result.net_before_late = net
+    result.unpaid = charges[0][1]
+    result.shortfall = charges[1][1]
+    result.forfeiture = charges[2][1]
+    result.inspection_total = sum((a for _, a in charges[3:]), ZERO)
 
     # 6. Late-refund interest (BR-37, BR-38, A-13)
     result.late_days = max(0, (settle_date - vacate).days - REFUND_DAYS)
     if result.late_days > 0 and net > 0:
-        result.late_interest = to_rupees(net * LATE_REFUND_RATE * result.late_days / 30)
+        result.late_interest = to_money(net * LATE_REFUND_RATE * result.late_days / 30)
     result.net_refund = net + result.late_interest
     return result

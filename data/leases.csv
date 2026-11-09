@@ -1,0 +1,16 @@
+lease_id,tenant_name,landlord_name,address,carpet_sqft,start_date,term_months,monthly_rent,deposit,lock_in_months,notice_days,escalation_pct,maintenance_uncapped
+LSE-001,Karthik Prasad,Santosh Das,"Flat 1106, Jayanagar, Bengaluru",1050,2025-03-31,11,24000.00,96000.00,3,30,5,false
+LSE-002,Lakshmi Shah,Vivek Khan,"Flat 813, Yelahanka, Bengaluru",1450,2025-04-01,11,20000.00,60000.00,0,30,5,false
+LSE-003,Ramesh Verma,Vani Shetty,"Flat 1283, JP Nagar, Bengaluru",850,2025-06-01,11,30000.00,150000.00,6,60,5,false
+LSE-004,Pooja Banerjee,Meena Mehta,"Flat 1106, Marathahalli, Bengaluru",1800,2025-05-01,11,25000.00,100000.00,0,30,5,false
+LSE-005,Imran Kulkarni,Suresh Murthy,"Flat 1375, Marathahalli, Bengaluru",1450,2025-02-01,11,35000.00,210000.00,6,60,5,false
+LSE-006,Mohan Agarwal,Radha Banerjee,"Flat 1425, Jayanagar, Bengaluru",1450,2025-01-15,11,28000.00,112000.00,0,30,5,false
+LSE-007,Ananya Rao,Joseph Jain,"Flat 838, Indiranagar, Bengaluru",1200,2025-07-01,11,22000.00,44000.00,0,30,5,false
+LSE-008,Radha Rao,Keerthi Jain,"Flat 1156, JP Nagar, Bengaluru",1450,2025-02-10,11,40000.00,400000.00,0,60,8,true
+LSE-009,Sunil Yadav,Lakshmi Menon,"Flat 400, Jayanagar, Bengaluru",850,2025-03-01,11,18000.00,36000.00,3,30,5,false
+LSE-010,Thomas Menon,Prakash Rao,"Flat 1470, Yelahanka, Bengaluru",1050,2026-01-20,11,35000.00,140000.00,0,60,8,false
+LSE-011,Lokesh Kulkarni,Asha Singh,"Flat 696, HSR Layout, Bengaluru",1450,2025-11-03,11,42000.00,252000.00,3,30,7,false
+LSE-012,Pallavi Shetty,Pavan Sharma,"Flat 206, Yelahanka, Bengaluru",1200,2025-02-24,11,30000.00,60000.00,0,30,8,false
+LSE-013,Jyothi Shah,Meena Yadav,"Flat 450, Whitefield, Bengaluru",1800,2025-08-27,11,35000.00,210000.00,11,30,8,false
+LSE-014,Vani Kulkarni,Ramesh Banerjee,"Flat 456, Koramangala, Bengaluru",1800,2025-01-18,11,22000.00,220000.00,0,60,5,false
+LSE-015,Priya Singh,Girish Singh,"Flat 899, JP Nagar, Bengaluru",1450,2025-03-24,11,42000.00,126000.00,11,60,5,false

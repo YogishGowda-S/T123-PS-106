@@ -43,10 +43,16 @@ def test_short_lock_in_always_forfeits_1_month():  # BR-19
     assert line(ev.settle(lease, date(2026, 2, 15)), "Lock-in")[1] == D("10000")
 
 
+def test_leaving_on_the_lock_in_end_date_still_forfeits_1_month():  # BR-19, A-21
+    lease = make_lease(lock_in_months=6)
+    ev.break_lease(lease, date(2026, 7, 1))        # lock-in runs to 1 July inclusive
+    assert line(ev.settle(lease, date(2026, 7, 1)), "Lock-in")[1] == D("10000")
+
+
 def test_leaving_after_lock_in_has_no_forfeiture():  # BR-21
     lease = make_lease(lock_in_months=6)
-    ev.break_lease(lease, date(2026, 7, 1))        # lock-in ended on 1 July
-    assert line(ev.settle(lease, date(2026, 7, 1)), "Lock-in")[1] == D("0")
+    ev.break_lease(lease, date(2026, 7, 2))
+    assert line(ev.settle(lease, date(2026, 7, 2)), "Lock-in")[1] == D("0")
 
 
 def test_landlord_notice_waives_lock_in_forfeiture():  # BR-25
@@ -137,7 +143,7 @@ def test_deposit_interest_on_excess_over_3_months():  # BR-35
     tenant_exit(lease, date(2026, 5, 1), date(2026, 5, 31))
     pay_all_on_due_dates(lease)
     s = ev.settle(lease, date(2026, 5, 31))
-    assert s.deposit_interest == D("493")          # 20000 x 6% x 150 / 365
+    assert s.deposit_interest == D("493.15")       # 20000 x 6% x 150 / 365
 
 
 def test_no_deposit_interest_when_deposit_is_exactly_3_months():  # EC-05, BR-36
