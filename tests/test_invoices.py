@@ -94,3 +94,31 @@ def test_maintenance_capped_at_10_percent_of_rent():  # BR-28
 def test_uncapped_flag_removes_maintenance_cap():  # BR-28
     lease = make_lease(rent="10000", maintenance="1500", uncapped=True)
     assert invoice(lease, 2026, 2).maint_due == D("1500")
+
+
+def test_rent_paid_for_a_shortened_month_is_returned_as_credit():
+    # BUG FIX: the excess must be measured against base rent (payments never pay maintenance)
+    from datetime import date
+    from src import events as ev
+    from src.payments import apply_payment
+    lease = make_lease(maintenance="800")
+    apply_payment(lease, date(2026, 1, 5), D("10000"))      # January in full
+    apply_payment(lease, date(2026, 1, 6), D("10000"))      # February in advance
+    ev.give_notice(lease, date(2026, 1, 10), "TENANT", date(2026, 1, 20))
+    # January now 20 of 31 days = 6451.61; February is dropped, so both payments flow back
+    assert invoice(lease, 2026, 1).base_due == D("6451.61")
+    assert lease.credit == D("20000") - D("6451.61")
+
+
+def test_late_fee_and_interest_paid_on_a_dropped_month_are_returned():
+    # money paid on a month that is no longer billed must flow back, never vanish
+    from datetime import date
+    from src import events as ev
+    from src.payments import apply_payment
+    lease = make_lease()
+    apply_payment(lease, date(2026, 2, 20), D("10000"))     # February paid 10 days late
+    feb = invoice(lease, 2026, 2)                           # (the payment hits January first)
+    paid_total = D("10000")
+    ev.give_notice(lease, date(2026, 2, 21), "TENANT", date(2026, 2, 21))
+    kept = sum((i.rent_paid + i.interest_paid + i.late_fee_paid for i in lease.invoices), D(0))
+    assert kept + lease.credit == paid_total

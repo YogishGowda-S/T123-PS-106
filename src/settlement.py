@@ -23,6 +23,11 @@ DEPOSIT_INTEREST_RATE = Decimal("0.06")
 REFUND_DAYS = 15                   # BR-37
 LATE_REFUND_RATE = Decimal("0.01")  # BR-38, per month
 
+# BR-34: the cap is deposit + 1 month's rent. By default it limits the inspection
+# deductions on their own (A-07). Set to True to make it limit ALL deductions together,
+# so steps 1-3 take priority and the inspection step is reduced to what is left.
+CAP_APPLIES_TO_ALL_DEDUCTIONS = False
+
 
 @dataclass
 class Settlement:
@@ -97,9 +102,11 @@ def compute_settlement(lease, settle_date) -> Settlement:
         items.append(("Inspection deductions (none reported)", ZERO))
     charges.extend(items)
     total = sum((a for _, a in items), ZERO)
-    cap = lease.deposit + rent_v
-    if total > cap:
-        charges.append(("Cap adjustment (deductions limited to deposit + 1 month rent)", cap - total))
+    allowed = lease.deposit + rent_v
+    if CAP_APPLIES_TO_ALL_DEDUCTIONS:
+        allowed = max(ZERO, allowed - sum((a for _, a in charges[:3]), ZERO))
+    if total > allowed:
+        charges.append(("Cap adjustment (deductions limited to deposit + 1 month rent)", allowed - total))
 
     # Apply charges against the deposit in order
     balance = lease.deposit

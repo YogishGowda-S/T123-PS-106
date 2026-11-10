@@ -15,14 +15,19 @@ from src.outputs import write_all
 
 
 def read_rows(path):
-    with open(path, newline="", encoding="utf-8") as handle:
-        return list(csv.DictReader(handle))
+    with open(path, newline="", encoding="utf-8-sig") as handle:   # utf-8-sig: tolerate an Excel BOM
+        rows = list(csv.DictReader(handle))
+    for row in rows:                                               # tolerate stray spaces in headers
+        for key in list(row):
+            if key is not None and key != key.strip():
+                row[key.strip()] = row.pop(key)
+    return rows
 
 
 def read_commands(path):
     """(line_no, text) for each command line; comments and blank lines are skipped."""
     commands = []
-    with open(path, encoding="utf-8") as handle:
+    with open(path, encoding="utf-8-sig") as handle:
         for line_no, line in enumerate(handle, 1):
             text = line.strip()
             if text and not text.startswith("#"):
@@ -46,7 +51,16 @@ def main(argv):
         print("Usage: python main.py <input_dir> [output_dir]")
         return 1
     output_dir = argv[1] if len(argv) == 2 else "output"
-    engine = run(argv[0], output_dir)
+    try:
+        engine = run(argv[0], output_dir)
+    except FileNotFoundError as err:
+        print(f"Input file not found: {err.filename}")
+        print("The input folder must contain leases.csv, maintenance_actuals.csv, "
+              "damage_rate_card.csv and commands.txt")
+        return 2
+    except KeyError as err:
+        print(f"An input file is missing the column {err}. Check the header row of the CSV files.")
+        return 2
     print("\n".join(engine.log))
     print(f"\nWrote invoices.csv, ledger.csv, settlements.csv, lease_state.csv to {output_dir}/")
     return 0

@@ -211,3 +211,17 @@ def test_cannot_settle_before_vacation_or_twice():
     ev.settle(lease, date(2026, 6, 1))
     with pytest.raises(ev.RuleError):
         ev.settle(lease, date(2026, 6, 2))
+
+
+def test_cap_can_be_switched_to_cover_all_deductions_together():  # BR-34, A-07
+    from src import settlement
+    lease = make_lease()                           # deposit 30000, rent 10000, cap 40000
+    tenant_exit(lease, date(2026, 1, 2), date(2026, 1, 31))   # January rent is unpaid
+    inspect(lease, damages=[("Structural", D("50000"))])
+    settlement.CAP_APPLIES_TO_ALL_DEDUCTIONS = True
+    try:
+        s = ev.settle(lease, date(2026, 1, 31))
+    finally:
+        settlement.CAP_APPLIES_TO_ALL_DEDUCTIONS = False
+    assert s.unpaid + s.shortfall + s.forfeiture + s.inspection_total == D("40000")
+    assert s.inspection_total < D("40000")

@@ -9,7 +9,7 @@
 7. Deposit interest uses actual tenancy days / 365 on the excess over 3 months' rent (A-03).
 8. DEFAULT: unpaid 60 days from the invoice due date, checked after every command; the flag and a termination notice are recorded but the lease keeps running (A-04, A-10).
 9. Maintenance comes from maintenance_actuals.csv, capped at 10% of full-month rent unless UNCAPPED, then pro-rated; it is shown on the invoice but is not part of the payment waterfall (A-05).
-10. The deposit-plus-one-month cap applies to inspection deductions only (A-07).
+10. The deposit-plus-one-month cap applies to inspection deductions only (A-07); the switch CAP_APPLIES_TO_ALL_DEDUCTIONS in settlement.py changes it to all deductions.
 11. If a lease starts after the 5th, its first invoice is due on the start date and grace is 5 days.
 12. A payment clears interest on all invoices first, then late fees, then rent oldest-first, including invoices not yet due (BR-14).
 13. Commands run strictly in file order; the clock used for DEFAULT never moves backwards.

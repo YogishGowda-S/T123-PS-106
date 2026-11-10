@@ -82,11 +82,11 @@ def sync_invoices(lease) -> None:
         else:
             inv.days, inv.due_date, inv.grace_end = days, due, grace_end
             inv.base_due, inv.maint_due = base_due, maint_due
-        excess = inv.rent_paid - inv.total_due
+        excess = inv.rent_paid - inv.base_due
         if excess > 0:  # payment made for an amount that no longer falls due
             lease.credit += excess
             inv.rent_paid -= excess
         result.append(inv)
-    for dropped in existing.values():
-        lease.credit += dropped.rent_paid
+    for dropped in existing.values():  # a month that is no longer billed: give back everything paid on it
+        lease.credit += dropped.rent_paid + dropped.interest_paid + dropped.late_fee_paid
     lease.invoices = sorted(result, key=lambda i: (i.year, i.month))

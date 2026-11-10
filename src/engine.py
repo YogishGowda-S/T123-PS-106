@@ -103,7 +103,11 @@ class Engine:
                 self._dispatch(line_no, name, when, parts)
             except ev.RuleError as err:
                 self.log.append(f"REJECTED line {line_no} [{when}] {name} {parts[2] if len(parts) > 2 else ''}: {err}")
-            except (ValueError, IndexError, KeyError, ArithmeticError) as err:
+            except IndexError:
+                self.log.append(f"REJECTED line {line_no} [{when}] {name}: missing fields in the command")
+            except ArithmeticError:
+                self.log.append(f"REJECTED line {line_no} [{when}] {name}: a number is not valid")
+            except (ValueError, KeyError) as err:
                 self.log.append(f"REJECTED line {line_no} [{when}] {name}: invalid command ({err})")
             self._assess_defaults()
 

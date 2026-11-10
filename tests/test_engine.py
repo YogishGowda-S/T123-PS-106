@@ -149,3 +149,50 @@ def test_bad_commands_do_not_crash_the_engine():
                 (3, "WHATEVER|2026-01-01 10:00:00|X")])
     text = "\n".join(engine.log)
     assert "no valid timestamp" in text and text.count("unknown lease") == 2
+
+
+def test_csv_with_excel_bom_and_windows_line_endings_is_read():
+    import os
+    from main import read_rows
+    with tempfile.TemporaryDirectory() as folder:
+        path = os.path.join(folder, "x.csv")
+        open(path, "wb").write(b"\xef\xbb\xbflease_id,monthly_rent\r\nL1,100\r\n")
+        assert read_rows(path) == [{"lease_id": "L1", "monthly_rent": "100"}]
+
+
+def test_missing_input_folder_gives_a_clear_message_not_a_crash():
+    import io
+    import contextlib
+    import main
+    buffer = io.StringIO()
+    with contextlib.redirect_stdout(buffer):
+        code = main.main(["no_such_folder_xyz"])
+    assert code == 2 and "Input file not found" in buffer.getvalue()
+
+
+def test_payment_after_settlement_and_second_settle_are_rejected():
+    from src.engine import Engine
+    engine = Engine()
+    engine.load_leases(read_rows_for("leases.csv"), read_rows_for("maintenance_actuals.csv"))
+    engine.run([(1, "NOTICE|2025-05-01 10:00:00|LSE-002|TENANT|2025-06-01"),
+                (2, "SETTLE|2025-06-05 10:00:00|LSE-002|2025-06-05"),
+                (3, "SETTLE|2025-06-06 10:00:00|LSE-002|2025-06-06"),
+                (4, "PAYMENT|2025-06-10 10:00:00|LSE-002|20000")])
+    text = "\n".join(engine.log)
+    assert "already settled" in text
+    assert engine.ledger_rows[-1]["status"] == "REJECTED_SETTLED"
+
+
+def test_malformed_commands_give_readable_messages():
+    from src.engine import Engine
+    engine = Engine()
+    engine.load_leases(read_rows_for("leases.csv"), read_rows_for("maintenance_actuals.csv"))
+    engine.run([(1, "NOTICE|2025-05-01 10:00:00|LSE-002"),
+                (2, "RENEW|2025-05-01 10:00:00|LSE-002|abc|false|0")])
+    text = "\n".join(engine.log)
+    assert "missing fields" in text and "a number is not valid" in text
+
+
+def read_rows_for(name):
+    from main import read_rows
+    return read_rows(DATA / name)
